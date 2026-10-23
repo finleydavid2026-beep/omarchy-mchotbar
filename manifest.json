@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "mchotbar",
+  "name": "Minecraft hotbar",
+  "version": "1.0.0",
+  "author": "Remi",
+  "description": "A Minecraft-style taskbar: a 9-slot hotbar with your apps, plus a Minecraft-styled app search menu on SUPER+E.",
+  "kinds": [
+    "menu",
+    "bar-widget"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "menu": "Menu.qml",
+    "barWidget": "Hotbar.qml"
+  },
+  "barWidget": {
+    "displayName": "Minecraft hotbar",
+    "description": "A 9-slot Minecraft hotbar holding your apps",
+    "category": "Compositor",
+    "allowMultiple": false
+  }
+}
