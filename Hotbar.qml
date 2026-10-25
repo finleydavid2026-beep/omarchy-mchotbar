@@ -1,20 +1,19 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
-import qs.Commons
 
-// Minecraft-style taskbar: nine item slots holding your apps.
+// Minecraft-style taskbar: nine item slots holding your apps, drawn with the
+// exact pixel art from the reference HUD rather than re-drawn rectangles.
 //
-// The look follows Minecraft's own hotbar rather than a generic dock:
-//   - each slot is a grey square with a light top/left edge and a dark
-//     bottom/right edge, which is what gives the inset "slot" read
-//   - the selected slot gets a white border and its item is drawn larger,
-//     the same way Minecraft raises the active slot
-//   - clicking a slot launches the app
+// The art lives in art/ next to this file:
+//   slot.png / slot_selected.png  one inventory slot, normal and selected
+//   hearts.png                    the health row
+//   food.png                      the hunger row
+// They are scaled with smooth: false so the pixels stay crisp.
 //
-// The slot list lives in ~/.config/omarchy/mchotbar/pins.json as a plain array
-// of desktop ids (["chromium", "steam", ...]). install.sh seeds it from the
-// Omarchy hotbar's existing pins so your apps are already there.
+// The layout is the HUD rearranged onto one row, which is what a taskbar
+// needs: the health row at the left end, the nine slots in the middle, and the
+// hunger row at the right end.
 //
 // The root is a plain Item carrying the three properties the bar host injects
 // (`bar`, `moduleName`, `settings`). qs.Ui's BarWidget does not resolve from a
@@ -32,19 +31,24 @@ Item {
 
   readonly property string configDir: Quickshell.env("XDG_CONFIG_HOME") + "/omarchy/mchotbar"
   readonly property string pinsPath: root.configDir + "/pins.json"
+  readonly property string artDir: "art"
 
-  // Slot geometry. Minecraft's hotbar is 9 slots with a small gap.
+  // Slot geometry, taken from the art itself.
   readonly property int slotCount: 9
-  readonly property int slotSize: 44
-  readonly property int slotGap: 4
-  readonly property int slotPad: 6
+  readonly property int slotW: 56
+  readonly property int slotH: 54
+  readonly property int stripW: 226
+  readonly property int stripH: 28
 
-  implicitWidth: root.slotCount * root.slotSize + (root.slotCount - 1) * root.slotGap + root.slotPad * 2
-  implicitHeight: root.slotSize + root.slotPad * 2
+  implicitWidth: root.slotCount * root.slotW + root.stripW + root.foodW
+  implicitHeight: root.slotH
+
+  readonly property int foodW: 232
 
   // [{ index, id, name, icon, source }]
   property var slots: []
   property int selected: 0
+  property var entryIndex: ({})
 
   FileView {
     id: pinsFile
@@ -61,9 +65,20 @@ Item {
     return (root.bar && root.bar.shell && root.bar.shell.appLibrary) ? root.bar.shell.appLibrary : null
   }
 
+  // A `class:org.foo.Bar` pin names a window class, not a desktop id, so it
+  // has to be mapped back to an entry. Matching any dotted segment of the
+  // class against the installed desktop ids covers the usual reverse-domain
+  // naming (org.localsend.localsend_app -> localsend).
+  function resolvePin(pin) {
+    if (!pin) return ""
+    if (pin.indexOf("class:") !== 0) return root.entryIndex[pin] ? pin : ""
+    var parts = pin.slice(6).split(".")
+    for (var i = 0; i < parts.length; i++) if (root.entryIndex[parts[i]]) return parts[i]
+    return ""
+  }
+
   function reloadSlots(rawText) {
     var raw = String(rawText || "")
-
     var ids = []
     try {
       var parsed = JSON.parse(raw || "[]")
@@ -71,13 +86,12 @@ Item {
     } catch (e) { ids = [] }
 
     // Index every installed desktop entry once, so a pin resolves to its name
-    // and icon without a per-slot lookup.
+    // and icon without a per-slot lookup. sortedEntries returns
+    // { entry, score, key, name } — the desktop entry itself is at .entry.
     var index = ({})
     var lib = root.appLibrary()
     if (lib) {
       try {
-        // sortedEntries returns { entry, score, key, name }; the desktop
-        // entry itself lives at .entry.
         var entries = lib.sortedEntries("")
         for (var i = 0; i < entries.length; i++) {
           var e = entries[i] ? entries[i].entry : null
@@ -85,23 +99,12 @@ Item {
         }
       } catch (e) { }
     }
-
-    // A `class:org.foo.Bar` pin names a window class, not a desktop id, so it
-    // has to be mapped back to an entry. Matching any dotted segment of the
-    // class against the installed desktop ids covers the usual reverse-domain
-    // naming (org.localsend.localsend_app -> localsend).
-    function resolvePin(pin) {
-      if (!pin) return ""
-      if (pin.indexOf("class:") !== 0) return index[pin] ? pin : ""
-      var parts = pin.slice(6).split(".")
-      for (var i = 0; i < parts.length; i++) if (index[parts[i]]) return parts[i]
-      return ""
-    }
+    root.entryIndex = index
 
     var next = []
     for (var s = 0; s < root.slotCount; s++) {
       var rawId = String(ids[s] || "")
-      var id = resolvePin(rawId)
+      var id = root.resolvePin(rawId)
       var entry = index[id]
       var icon = entry ? String(entry.icon || "") : ""
       var source = ""
@@ -136,12 +139,45 @@ Item {
     root.bar.showTooltip(root, slot.name)
   }
 
+  // Health row, left end.
+  Image {
+    anchors {
+      left: parent.left
+      verticalCenter: parent.verticalCenter
+    }
+    width: root.stripW
+    height: root.stripH
+    source: root.artDir + "/hearts.png"
+    smooth: false
+    asynchronous: true
+  }
+
+  // Hunger row, right end.
+  Image {
+    anchors {
+      right: parent.right
+      verticalCenter: parent.verticalCenter
+    }
+    width: root.foodW
+    height: root.stripH
+    source: root.artDir + "/food.png"
+    smooth: false
+    asynchronous: true
+  }
+
   Row {
-    anchors.centerIn: parent
-    spacing: root.slotGap
+    anchors {
+      left: parent.left
+      leftMargin: root.stripW
+      verticalCenter: parent.verticalCenter
+    }
+    spacing: 0
     Repeater {
       model: root.slots
       delegate: McSlot {
+        slotW: root.slotW
+        slotH: root.slotH
+        artDir: root.artDir
         isSelected: modelData.index === root.selected
         hotbar: root
       }

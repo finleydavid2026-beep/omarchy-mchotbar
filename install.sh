@@ -75,6 +75,8 @@ else
   cp "$REPO/McSlot.qml" "$PLUGIN_DIR/"
   cp "$REPO/Menu.qml" "$PLUGIN_DIR/"
   cp "$REPO/McRow.qml" "$PLUGIN_DIR/"
+  mkdir -p "$PLUGIN_DIR/art"
+  cp "$REPO"/art/*.png "$PLUGIN_DIR/art/"
 fi
 
 # ------------------------------------------------------------- 4. app slots
@@ -141,7 +143,7 @@ block = """
 # Minecraft hotbar: 44px slots plus padding needs a taller bar than the
 # Windows-style taskbar's 42px, or the slots clip.
 [bar]
-background = "#232323"
+background = "#000000"
 background-alpha = 1.0
 size-horizontal = 56
 size-vertical = 60

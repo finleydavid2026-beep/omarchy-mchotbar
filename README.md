@@ -14,10 +14,15 @@ not a replacement — `switch.sh` flips between the two.
 | `SUPER + E` | Minecraft-styled menu: a search field plus your apps. Type to filter, ↑/↓ to move, Enter to launch, Esc to close. |
 | `omarchy.clock` | kept, moved into the centre group |
 
-The slot styling follows Minecraft's own hotbar rather than a generic dock:
-each slot is a grey square with a light top/left edge and a dark bottom/right
-edge (the inset bevel), and the selected slot gets a white border with its item
-drawn larger.
+The slot styling is the **actual pixel art** from the reference HUD, not a
+redrawn approximation — `art/slot.png`, `art/slot_selected.png`,
+`art/hearts.png` and `art/food.png` are cropped straight from the source image
+and scaled with `smooth: false` so the pixels stay crisp. The health row sits at
+the left end of the bar, the hunger row at the right end, and the nine slots
+run between them, which is the HUD rearranged onto the one row a taskbar needs.
+
+The bar background is set to black for this layout so the art's own black
+background blends into the bar with no seam.
 
 ## Install
 
