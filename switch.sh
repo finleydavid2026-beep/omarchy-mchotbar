@@ -39,8 +39,17 @@ fi
 
 # 2. Apply the target.
 if [[ ! -f "$LAYOUTS/shell.json.$target" ]]; then
-  say "no stored layout for $target — installing it instead"
-  exec "$REPO/install.sh"
+  case "$target" in
+    macdock)  sibling="$HOME/omarchy-macdock" ;;
+    winbar)   sibling="$HOME/omarchy-winbar" ;;
+    *)        sibling="$REPO" ;;
+  esac
+  if [[ -x "$sibling/install.sh" ]]; then
+    say "no stored layout for $target — handing off to $sibling"
+    exec "$sibling/install.sh"
+  fi
+  say "no stored layout for $target and no installer found at $sibling" >&2
+  exit 1
 fi
 
 cp "$LAYOUTS/shell.json.$target" "$OMARCHY_CONFIG/shell.json"
