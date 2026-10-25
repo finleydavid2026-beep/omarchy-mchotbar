@@ -2,18 +2,16 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 
-// Minecraft-style taskbar: nine item slots holding your apps, drawn with the
-// exact pixel art from the reference HUD rather than re-drawn rectangles.
+// Minecraft-style taskbar: nine item slots holding your apps, plus a health row
+// that shows the battery and an armour row that shows wifi signal strength.
 //
-// The art lives in art/ next to this file:
-//   slot.png / slot_selected.png  one inventory slot, normal and selected
-//   hearts.png                    the health row
-//   food.png                      the hunger row
-// They are scaled with smooth: false so the pixels stay crisp.
+// The art is the exact pixel art from the reference HUD, cropped into
+// art/heart.png and art/armor.png and tiled. A full row is ten icons; the count
+// shown follows the value, and the unused ones stay at low opacity so the row
+// keeps its width instead of jumping around.
 //
-// The layout is the HUD rearranged onto one row, which is what a taskbar
-// needs: the health row at the left end, the nine slots in the middle, and the
-// hunger row at the right end.
+//   hearts  battery percentage  (0-100% -> 0-10 hearts)
+//   armour  wifi signal         (0-100  -> 0-10 chestplates)
 //
 // The root is a plain Item carrying the three properties the bar host injects
 // (`bar`, `moduleName`, `settings`). qs.Ui's BarWidget does not resolve from a
@@ -37,19 +35,78 @@ Item {
   readonly property int slotCount: 9
   readonly property int slotW: 56
   readonly property int slotH: 54
-  readonly property int stripW: 226
-  readonly property int stripH: 28
 
-  implicitWidth: root.slotCount * root.slotW + root.stripW + root.foodW
+  // Icon strip geometry, also from the art: the source strips are ten icons at
+  // a 22px pitch.
+  readonly property int iconCount: 10
+  readonly property int iconW: 22
+  readonly property int iconH: 25
+
+  property int battery: 0     // 0-100
+  property int wifi: 0        // 0-100
+
+  readonly property int heartCount: Math.round(root.battery * root.iconCount / 100)
+  readonly property int armorCount: Math.round(root.wifi * root.iconCount / 100)
+
+
+  implicitWidth: root.iconCount * root.iconW * 2 + root.slotCount * root.slotW
   implicitHeight: root.slotH
-
-  readonly property int foodW: 232
 
   // [{ index, id, name, icon, source }]
   property var slots: []
   property int selected: 0
   property var entryIndex: ({})
 
+  // ---- battery ------------------------------------------------------------
+  // Read straight from sysfs; no omarchy service needed.
+  Process {
+    id: batteryProc
+    property string collected: ""
+    command: ["bash", "-c", "cat /sys/class/power_supply/BAT0/capacity 2>/dev/null || echo 0"]
+    running: true
+    onRunningChanged: function() { if (batteryProc.running) batteryProc.collected = "" }
+    stdout: SplitParser {
+      onRead: function(data) { batteryProc.collected += data }
+    }
+    onExited: function() {
+      var value = parseInt(String(batteryProc.collected || "0").replace(/[^0-9]/g, ""), 10)
+      if (!isFinite(value)) value = 0
+      root.battery = Math.max(0, Math.min(100, value))
+    }
+  }
+
+  // ---- wifi ---------------------------------------------------------------
+  // nmcli reports the active connection's signal as 0-100.
+  Process {
+    id: wifiProc
+    property string collected: ""
+    command: ["bash", "-c", "nmcli -t -f ACTIVE,SIGNAL dev wifi 2>/dev/null | awk -F: '$1==\"yes\"{print $2; exit}'"]
+    running: true
+    onRunningChanged: function() { if (wifiProc.running) wifiProc.collected = "" }
+    stdout: SplitParser {
+      onRead: function(data) { wifiProc.collected += data }
+    }
+    onExited: function() {
+      var value = parseInt(String(wifiProc.collected || "0").replace(/[^0-9]/g, ""), 10)
+      if (!isFinite(value)) value = 0
+      root.wifi = Math.max(0, Math.min(100, value))
+    }
+  }
+
+  // Re-poll both every few seconds.
+  // Poll both, but never overlap runs: a second run while the first is still
+  // writing makes `collected` accumulate ("2626"), which clamps to 100.
+  Timer {
+    interval: 5000
+    running: true
+    repeat: true
+    onTriggered: function() {
+      if (!batteryProc.running) batteryProc.running = true
+      if (!wifiProc.running) wifiProc.running = true
+    }
+  }
+
+  // ---- app slots ----------------------------------------------------------
   FileView {
     id: pinsFile
     path: root.pinsPath
@@ -139,36 +196,32 @@ Item {
     root.bar.showTooltip(root, slot.name)
   }
 
-  // Health row, left end.
-  Image {
-    anchors {
-      left: parent.left
-      verticalCenter: parent.verticalCenter
-    }
-    width: root.stripW
-    height: root.stripH
-    source: root.artDir + "/hearts.png"
-    smooth: false
-    asynchronous: true
-  }
-
-  // Hunger row, right end.
-  Image {
-    anchors {
-      right: parent.right
-      verticalCenter: parent.verticalCenter
-    }
-    width: root.foodW
-    height: root.stripH
-    source: root.artDir + "/food.png"
-    smooth: false
-    asynchronous: true
-  }
-
+  // ---- health row (battery) ----------------------------------------------
   Row {
     anchors {
       left: parent.left
-      leftMargin: root.stripW
+      verticalCenter: parent.verticalCenter
+    }
+    spacing: 0
+    Repeater {
+      model: root.iconCount
+      delegate: Image {
+        required property int index
+        width: root.iconW
+        height: root.iconH
+        source: root.artDir + "/heart.png"
+        smooth: false
+        asynchronous: true
+        opacity: index < root.heartCount ? 1 : 0.18
+      }
+    }
+  }
+
+  // ---- app slots ----------------------------------------------------------
+  Row {
+    anchors {
+      left: parent.left
+      leftMargin: root.iconCount * root.iconW
       verticalCenter: parent.verticalCenter
     }
     spacing: 0
@@ -180,6 +233,28 @@ Item {
         artDir: root.artDir
         isSelected: modelData.index === root.selected
         hotbar: root
+      }
+    }
+  }
+
+  // ---- armour row (wifi) --------------------------------------------------
+  Row {
+    anchors {
+      left: parent.left
+      leftMargin: root.iconCount * root.iconW + root.slotCount * root.slotW
+      verticalCenter: parent.verticalCenter
+    }
+    spacing: 0
+    Repeater {
+      model: root.iconCount
+      delegate: Image {
+        required property int index
+        width: root.iconW
+        height: root.iconH
+        source: root.artDir + "/armor.png"
+        smooth: false
+        asynchronous: true
+        opacity: index < root.armorCount ? 1 : 0.18
       }
     }
   }

@@ -24,6 +24,20 @@ run between them, which is the HUD rearranged onto the one row a taskbar needs.
 The bar background is set to black for this layout so the art's own black
 background blends into the bar with no seam.
 
+### Hearts = battery, armour = wifi
+
+The two icon strips are live:
+
+| strip | shows | range |
+|---|---|---|
+| hearts (left) | battery percentage | 0-100% -> 0-10 hearts |
+| armour (right) | wifi signal strength | 0-100 -> 0-10 chestplates |
+
+A full row is ten icons; the count follows the value and the unused ones stay
+at low opacity so the row keeps its width instead of jumping around. Battery
+comes from `/sys/class/power_supply/BAT0/capacity` and wifi from
+`nmcli -t -f ACTIVE,SIGNAL dev wifi`, polled every 5 seconds.
+
 ## Install
 
 ```bash
