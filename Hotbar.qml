@@ -41,6 +41,9 @@ Item {
   readonly property int iconCount: 10
   readonly property int iconW: 22
   readonly property int iconH: 25
+  // Gap between the three sections, so the hearts and the hotbar read as
+  // separate rows rather than one continuous strip.
+  readonly property int gap: 18
 
   property int battery: 0     // 0-100
   property int wifi: 0        // 0-100
@@ -49,7 +52,7 @@ Item {
   readonly property int armorCount: Math.round(root.wifi * root.iconCount / 100)
 
 
-  implicitWidth: root.iconCount * root.iconW * 2 + root.slotCount * root.slotW
+  implicitWidth: root.iconCount * root.iconW * 2 + root.slotCount * root.slotW + root.gap * 2
   implicitHeight: root.slotH
 
   // [{ index, id, name, icon, source }]
@@ -221,7 +224,7 @@ Item {
   Row {
     anchors {
       left: parent.left
-      leftMargin: root.iconCount * root.iconW
+      leftMargin: root.iconCount * root.iconW + root.gap
       verticalCenter: parent.verticalCenter
     }
     spacing: 0
@@ -241,7 +244,7 @@ Item {
   Row {
     anchors {
       left: parent.left
-      leftMargin: root.iconCount * root.iconW + root.slotCount * root.slotW
+      leftMargin: root.iconCount * root.iconW + root.gap + root.slotCount * root.slotW + root.gap
       verticalCenter: parent.verticalCenter
     }
     spacing: 0
